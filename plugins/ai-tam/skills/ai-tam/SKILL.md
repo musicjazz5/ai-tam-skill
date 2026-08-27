@@ -1,11 +1,11 @@
 ---
 name: ai-tam
-description: 透過 market-scan REST API（Tailscale 內網 100.70.225.18:8504）取得最新市場掃描資料（8 大主題地圖、跨主題漲跌排行、個股定位、台股主動式 ETF 持股/加減碼/估計成本、200+ 資料集），並串接後續的分析、社群貼文、YouTube 影片製作。當使用者提到 ai-tam、類股地圖 / AI 地圖 / aiGrowthMap、盤勢速查、主題題材版圖、主動式 ETF / 00981A / 00881A 持股與加減碼、要用 ai-tam 資料寫貼文或做影片，或在 spark-9fd5 / spark2 等 tailnet 機器上要抓 ai-tam 最新資訊時使用。
+description: 透過 market-scan REST API（Tailscale 內網 100.70.225.18:8504）取得最新市場掃描資料（8 大主題地圖、跨主題漲跌排行、個股定位、台股主動式 ETF 持股/加減碼/估計成本、S&P500 市值 Top10 與多週期漲跌、200+ 資料集），並串接後續的分析、社群貼文、YouTube 影片製作。當使用者提到 ai-tam、類股地圖 / AI 地圖 / aiGrowthMap、盤勢速查、主題題材版圖、主動式 ETF / 00981A / 00881A 持股與加減碼、市值排行 / Top10 / 市值集中度、要用 ai-tam 資料寫貼文或做影片，或在 spark-9fd5 / spark2 等 tailnet 機器上要抓 ai-tam 最新資訊時使用。
 ---
 
 # ai-tam market-scan API
 
-`aiGrowthMap`（AI 地圖）、`etf`（台股主動式 ETF）專欄與全部 `public/data` 資料集的唯讀 REST 介面。
+`aiGrowthMap`（AI 地圖）、`etf`（台股主動式 ETF）、`top10`（S&P500 市值排行）專欄與全部 `public/data` 資料集的唯讀 REST 介面。
 
 **Base URL**：`http://100.70.225.18:8504/market-scan/api/v1`（ggmac-studio 的 tailnet 位址）
 
@@ -54,6 +54,21 @@ loopback，來源不是 tailnet。**不要**用 ai-tam.org 當 base URL。
 
 `type` 的值是**加碼／減碼／剔除**，不是「增碼」。打錯會回 404 並附上該基金當日實際有的值。
 `/etf/signals` 列表預設省略 `combined_series` / `per_fund` 逐日明細；要明細用 `?code=` 或 `?detail=1`。
+
+### S&P500 市值 Top 10（tab=top10）
+
+| 端點 | 用途 |
+|------|------|
+| `GET /top10` | 市值 Top10 排行 + 集中度（top10 / top5 佔比）· `?limit=` `?fields=` |
+| `GET /top10/periods` | 3d/7d/14d/1m 四週期統計摘要，一眼比較短中期強弱 |
+| `GET /top10/movers` | 單一週期漲跌榜 · `?period=3d\|7d\|14d\|1m`（預設 7d）`?list=gainers\|losers\|contributors\|detractors` `?limit=` |
+| `GET /top10/growth` | 長期（730 天）市值成長榜 · `?list=risers\|droppers\|growth` `?limit=` |
+| `GET /top10/global` | 全球市值 Top20（不限 S&P500）· `?sp500=0` 只留非成分股 |
+
+`/top10/movers` 不帶 `?list=` 會一次回四張榜 + `sectors`，要省 context 就指定 `list`。
+`/top10/global` 是**人工快照**，回應帶 `age_days` 與 `stale` 旗標；`stale:true`（>7 天）時
+**必須在輸出標注資料日期**，不可當即時報價用。它的價值是補 S&P500 universe 看不到的
+台積電 ADR、沙烏地阿美、三星、SK海力士等。
 
 主題 id：`aiTamWatchlist` `aiGrowth` `earlySignal` `serenity` `gooaye` `taiwanAi` `citriniKuppy` `nuclearUranium`
 
@@ -115,7 +130,18 @@ curl -s "$BASE/etf/holders/2330"                       # 台積電被哪幾檔 E
 `cost-basis` 是**回溯資料快照推估**（增持日收盤價中位數），**不是基金真實建倉成本** ——
 引用時要照 `methodology` 欄位說明，不可直接講成「這檔 ETF 的成本是 X」。
 
-### 5. YouTube 影片製作
+### 5. 大型股／市值集中度
+```bash
+curl -s "$BASE/top10" | jq '.summary'                          # top10 佔全體市值幾成
+curl -s "$BASE/top10/periods"                                  # 短中期哪個週期在轉強
+curl -s "$BASE/top10/movers?period=7d&list=gainers&limit=10"   # 7D 漲幅榜
+curl -s "$BASE/top10/growth?list=risers&limit=10"              # 兩年市值成長冠軍
+curl -s "$BASE/top10/global?sp500=0"                           # 非 S&P500 的全球巨頭
+```
+`period_analyses` 的報酬率欄位是 `week_return_pct` / `one_month_return_pct` /
+`three_day_return_pct` / `two_week_return_pct` —— 取哪個週期就讀對應欄位，不要混用。
+
+### 6. YouTube 影片製作
 用上面的資料先擬腳本重點，再交棒給 spark2 GPU 影片工廠（`ai-tam-video` MCP，雙主播 安晴／若衡）：
 `video_batch_requirements` → 使用者確認 → `create_video_batch` → `get_video_job` → `get_video_output_links`。
 影片牽涉版權與發布，**建立任務前必須取得使用者明確確認**。
