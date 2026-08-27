@@ -1,11 +1,11 @@
 ---
 name: ai-tam
-description: 透過 market-scan REST API（Tailscale 內網 100.70.225.18:8504）取得最新市場掃描資料（8 大主題地圖、跨主題漲跌排行、個股定位、台股主動式 ETF 持股/加減碼/估計成本、S&P500 市值 Top10 與多週期漲跌、200+ 資料集），並串接後續的分析、社群貼文、YouTube 影片製作。當使用者提到 ai-tam、類股地圖 / AI 地圖 / aiGrowthMap、盤勢速查、主題題材版圖、主動式 ETF / 00981A / 00881A 持股與加減碼、市值排行 / Top10 / 市值集中度、要用 ai-tam 資料寫貼文或做影片，或在 spark-9fd5 / spark2 等 tailnet 機器上要抓 ai-tam 最新資訊時使用。
+description: 透過 market-scan REST API（Tailscale 內網 100.70.225.18:8504）取得最新市場掃描資料（8 大主題地圖、跨主題漲跌排行、個股定位、台股主動式 ETF 持股/加減碼/估計成本、S&P500 市值 Top10 與多週期漲跌、台股大戶持股/籌碼集中度/三大法人/期貨情緒、200+ 資料集），並串接後續的分析、社群貼文、YouTube 影片製作。當使用者提到 ai-tam、類股地圖 / AI 地圖 / aiGrowthMap、盤勢速查、主題題材版圖、主動式 ETF / 00981A / 00881A 持股與加減碼、市值排行 / Top10 / 市值集中度、台股大戶 / 千張大戶 / 籌碼集中度 / 三大法人 / 外資期貨、要用 ai-tam 資料寫貼文或做影片，或在 spark-9fd5 / spark2 等 tailnet 機器上要抓 ai-tam 最新資訊時使用。
 ---
 
 # ai-tam market-scan API
 
-`aiGrowthMap`（AI 地圖）、`etf`（台股主動式 ETF）、`top10`（S&P500 市值排行）專欄與全部 `public/data` 資料集的唯讀 REST 介面。
+`aiGrowthMap`（AI 地圖）、`etf`（台股主動式 ETF）、`top10`（S&P500 市值排行）、`twBigShareholder`（台股大戶籌碼）專欄與全部 `public/data` 資料集的唯讀 REST 介面。
 
 **Base URL**：`http://100.70.225.18:8504/market-scan/api/v1`（ggmac-studio 的 tailnet 位址）
 
@@ -69,6 +69,23 @@ loopback，來源不是 tailnet。**不要**用 ai-tam.org 當 base URL。
 `/top10/global` 是**人工快照**，回應帶 `age_days` 與 `stale` 旗標；`stale:true`（>7 天）時
 **必須在輸出標注資料日期**，不可當即時報價用。它的價值是補 S&P500 universe 看不到的
 台積電 ADR、沙烏地阿美、三星、SK海力士等。
+
+### 台股籌碼／大戶持股（tab=twBigShareholder）
+
+| 端點 | 用途 |
+|------|------|
+| `GET /tw` | 四份資料各自的日期、筆數與方法論（**先看這支確認新鮮度**）|
+| `GET /tw/big-shareholders` | 千張大戶比例排行 · `?sort=delta\|pct\|chg`（預設 delta）`?direction=asc` `?min_delta=` `?theme=` `?limit=` |
+| `GET /tw/chip-concentration` | 籌碼集中度 · `?sort=delta\|chip\|foreign\|big` `?direction=` `?min_delta=` `?theme=` |
+| `GET /tw/three-majors` | 三大法人買賣超 · `?list=foreign_buy\|foreign_sell\|trust_buy\|trust_sell\|total_buy\|total_sell` |
+| `GET /tw/futures-sentiment` | 台指期籌碼 + Put/Call（大盤層級）· `?history=1` `?limit=` |
+| `GET /tw/stocks/{code}` | 單一台股籌碼全貌（大戶＋集中度＋法人一次查）|
+
+⚠️ **更新頻率不同,不可混用日期**：大戶比例與籌碼集中度是**週更**（大戶每週三公布），
+三大法人與期貨是**日更**。`/tw/stocks/{code}` 三個區塊各自帶日期，引用時要標對。
+
+`sort=delta` 是**本週變動**（`pct_gt1k_delta`），不是絕對比例；`direction=asc` 看的是減碼最多。
+`min_delta` 比的是絕對值，所以 `min_delta=5` 會同時留下 +9.7 與 -7.7。
 
 主題 id：`aiTamWatchlist` `aiGrowth` `earlySignal` `serenity` `gooaye` `taiwanAi` `citriniKuppy` `nuclearUranium`
 
@@ -141,7 +158,19 @@ curl -s "$BASE/top10/global?sp500=0"                           # 非 S&P500 的�
 `period_analyses` 的報酬率欄位是 `week_return_pct` / `one_month_return_pct` /
 `three_day_return_pct` / `two_week_return_pct` —— 取哪個週期就讀對應欄位，不要混用。
 
-### 6. YouTube 影片製作
+### 6. 台股籌碼追蹤
+```bash
+curl -s "$BASE/tw"                                        # 先確認四份資料的日期
+curl -s "$BASE/tw/big-shareholders?limit=10"              # 大戶加碼榜
+curl -s "$BASE/tw/big-shareholders?direction=asc&limit=10" # 大戶減碼榜
+curl -s "$BASE/tw/three-majors?list=foreign_buy&limit=10"  # 外資買超
+curl -s "$BASE/tw/futures-sentiment" | jq '.insights'      # 期貨情緒判讀
+curl -s "$BASE/tw/stocks/2330"                             # 單一個股籌碼全貌
+```
+大戶比例是**集保週統計**（每週三公布），與日更的法人資料日期會差幾天 ——
+同一篇貼文若同時引用，必須分別標注日期，不可寫成同一天的事。
+
+### 7. YouTube 影片製作
 用上面的資料先擬腳本重點，再交棒給 spark2 GPU 影片工廠（`ai-tam-video` MCP，雙主播 安晴／若衡）：
 `video_batch_requirements` → 使用者確認 → `create_video_batch` → `get_video_job` → `get_video_output_links`。
 影片牽涉版權與發布，**建立任務前必須取得使用者明確確認**。
