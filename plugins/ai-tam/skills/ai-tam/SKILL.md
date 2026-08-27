@@ -1,6 +1,6 @@
 ---
 name: ai-tam
-description: 透過 ai-tam.org 的 REST API 取得最新市場掃描資料（8 大主題地圖、跨主題漲跌排行、個股定位、200+ 資料集），並串接後續的分析、社群貼文、YouTube 影片製作。當使用者提到 ai-tam、類股地圖 / AI 地圖 / aiGrowthMap、盤勢速查、主題題材版圖、要用 ai-tam 資料寫貼文或做影片，或在 spark-9fd5 / spark2 / vinson 等遠端機器上要抓 ai-tam 最新資訊時使用。
+description: 透過 market-scan REST API（Tailscale 內網 100.70.225.18:8504）取得最新市場掃描資料（8 大主題地圖、跨主題漲跌排行、個股定位、200+ 資料集），並串接後續的分析、社群貼文、YouTube 影片製作。當使用者提到 ai-tam、類股地圖 / AI 地圖 / aiGrowthMap、盤勢速查、主題題材版圖、要用 ai-tam 資料寫貼文或做影片，或在 spark-9fd5 / spark2 等 tailnet 機器上要抓 ai-tam 最新資訊時使用。
 ---
 
 # ai-tam market-scan API
