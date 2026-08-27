@@ -2,10 +2,14 @@
 
 Claude Code plugin marketplace for **AI-TAM market-scan**.
 
-透過 [ai-tam.org](https://www.ai-tam.org/market-scan?tab=aiGrowthMap) 的公開 REST API，
-讓任何一台裝了 Claude Code 的機器都能取得最新的市場掃描資料，並接續做分析、社群貼文與影片腳本。
+讓 tailnet 上的機器（spark-9fd5 / spark2 …）取得
+[market-scan](https://www.ai-tam.org/market-scan?tab=aiGrowthMap) 的最新資料，
+並接續做分析、社群貼文與影片腳本。
 
-API 為**唯讀、免認證、CORS 全開** —— 不需要金鑰、VPN 或 SSH。
+> **這是私有 marketplace。** API 只在 Tailscale 網段內可達，
+> 裝在 tailnet 之外的機器上不會有作用。
+
+API 為**唯讀**，且**僅限 Tailscale 網段直連**（`100.64.0.0/10`）。從公網 `ai-tam.org` 存取一律回 403。
 
 ---
 
@@ -21,14 +25,14 @@ API 為**唯讀、免認證、CORS 全開** —— 不需要金鑰、VPN 或 SSH
 驗證 API 可達：
 
 ```bash
-curl -s https://www.ai-tam.org/market-scan/api/v1/health
+curl -s http://100.70.225.18:8504/market-scan/api/v1/health
 ```
 
 ---
 
 ## 提供什麼
 
-`/ai-tam` skill 編排以下端點，基底路徑 `https://www.ai-tam.org/market-scan/api/v1`：
+`/ai-tam` skill 編排以下端點，基底路徑 `http://100.70.225.18:8504/market-scan/api/v1`：
 
 | 端點 | 用途 |
 |------|------|
@@ -59,7 +63,7 @@ curl -s https://www.ai-tam.org/market-scan/api/v1/health
 範例 —— 產出依主題分類的 cheat-sheet 貼文骨架：
 
 ```bash
-BASE=https://www.ai-tam.org/market-scan/api/v1
+BASE=http://100.70.225.18:8504/market-scan/api/v1
 curl -s "$BASE/themes/aiGrowth?fields=symbol,change_pct" | jq -r \
   '.categories[] | "\(.name)：" + ([.tickers[] | "\(.symbol) \(.change_pct)%"] | join(" / "))'
 ```

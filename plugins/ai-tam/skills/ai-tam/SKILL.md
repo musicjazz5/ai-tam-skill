@@ -1,14 +1,27 @@
 ---
 name: ai-tam
-description: 透過 ai-tam.org 的公開 REST API 取得最新市場掃描資料（8 大主題地圖、跨主題漲跌排行、個股定位、200+ 資料集），並串接後續的分析、社群貼文、YouTube 影片製作。當使用者提到 ai-tam、類股地圖 / AI 地圖 / aiGrowthMap、盤勢速查、主題題材版圖、要用 ai-tam 資料寫貼文或做影片，或在遠端機器上要抓 ai-tam 最新資訊時使用。
+description: 透過 ai-tam.org 的 REST API 取得最新市場掃描資料（8 大主題地圖、跨主題漲跌排行、個股定位、200+ 資料集），並串接後續的分析、社群貼文、YouTube 影片製作。當使用者提到 ai-tam、類股地圖 / AI 地圖 / aiGrowthMap、盤勢速查、主題題材版圖、要用 ai-tam 資料寫貼文或做影片，或在 spark-9fd5 / spark2 / vinson 等遠端機器上要抓 ai-tam 最新資訊時使用。
 ---
 
 # ai-tam market-scan API
 
-`https://www.ai-tam.org/market-scan` 的 `aiGrowthMap`（AI 地圖）專欄與全部 `public/data` 資料集的唯讀 REST 介面。公開、免認證、CORS 全開 —— 任何機器 `curl` 即可用。
+`aiGrowthMap`（AI 地圖）專欄與全部 `public/data` 資料集的唯讀 REST 介面。
 
-**Base URL**：`https://www.ai-tam.org/market-scan/api/v1`
+**Base URL**：`http://100.70.225.18:8504/market-scan/api/v1`（ggmac-studio 的 tailnet 位址）
 
+```bash
+BASE=${AI_TAM_BASE:-http://100.70.225.18:8504/market-scan/api/v1}
+```
+
+⚠️ **僅限 Tailscale 網段直連**。2026-08-27 起 `/api/v1` 只接受來源 IP 在 `100.64.0.0/10`
+的連線（判斷用 TCP 對端位址，偽造 `X-Forwarded-For` 無效）。
+走公網 `https://www.ai-tam.org/...` 一律回 **403** —— 那條路徑經 Cloudflare → Django →
+loopback，來源不是 tailnet。**不要**用 ai-tam.org 當 base URL。
+
+目前在 tailnet 上的機器：`spark-9fd5`(100.69.76.67)、`spark2`(100.125.21.71)。
+`vinson` 不在 tailnet，需先加入才能用。
+
+連不上時先確認 `tailscale status`，再跑 `curl -s $BASE/health`。
 先跑 `curl -s $BASE` 拿到即時的端點目錄，不要憑記憶猜端點。
 
 ## 端點
@@ -36,7 +49,7 @@ description: 透過 ai-tam.org 的公開 REST API 取得最新市場掃描資料
 4. 大回應一律 `| jq` 或 `| head -c 2000` 之後再讀
 
 ```bash
-BASE=https://www.ai-tam.org/market-scan/api/v1
+BASE=${AI_TAM_BASE:-http://100.70.225.18:8504/market-scan/api/v1}
 curl -s "$BASE/datasets/theme_stock_analysis_latest?shape=1"          # 先看結構
 curl -s "$BASE/datasets/stock_metrics?path=sp500&fields=symbol,pe,revenue_yoy&limit=20"
 ```
@@ -75,9 +88,8 @@ curl -s "$BASE/themes/aiGrowth?fields=symbol,change_pct" | jq -r \
 發文前一律先給使用者過目。**不要自行發布到任何社群平台**，除非使用者當次明確授權。
 
 ### 4. YouTube 影片製作
-用上面的資料先擬腳本重點。若環境有接 `ai-tam-video` MCP（GPU 影片工廠，雙主播 安晴／若衡），再交棒：
+用上面的資料先擬腳本重點，再交棒給 spark2 GPU 影片工廠（`ai-tam-video` MCP，雙主播 安晴／若衡）：
 `video_batch_requirements` → 使用者確認 → `create_video_batch` → `get_video_job` → `get_video_output_links`。
-沒有該 MCP 時就只產出腳本大綱，不要假裝能算繪。
 影片牽涉版權與發布，**建立任務前必須取得使用者明確確認**。
 
 ## 數字紀律
@@ -86,16 +98,13 @@ curl -s "$BASE/themes/aiGrowth?fields=symbol,change_pct" | jq -r \
 - 無法從 API 核實的數字標注「未核實」，不要放進報告或貼文的主張裡。
 - 期貨缺口只能期貨對期貨，不可拿 TXF 價格對 TAIEX 指數比較。
 
-## 安裝
+## 遠端機器安裝
 
-以 plugin marketplace 安裝（建議）：
+把這個資料夾放到目標機器的 `~/.claude/skills/ai-tam/`。**該機器必須已加入 tailnet**
+（`tailscale status` 看得到 ggmac-studio 100.70.225.18），否則所有端點都會 403：
 
+```bash
+scp -r .claude/skills/ai-tam grant@100.69.76.67:~/.claude/skills/
 ```
-/plugin marketplace add musicjazz5/ai-tam-skill
-/plugin install ai-tam@ai-tam
-```
 
-或直接把 `skills/ai-tam/` 複製到目標機器的 `~/.claude/skills/ai-tam/`。
-API 為公開唯讀，**不需要金鑰、VPN 或 SSH**，任何有網路的機器都能直接用。
-
-驗證：`curl -s https://www.ai-tam.org/market-scan/api/v1/health`
+驗證：`curl -s http://100.70.225.18:8504/market-scan/api/v1/health`（必須在 tailnet 上）

@@ -7,7 +7,7 @@
 #   ./ai-tam.sh datasets/stock_metrics shape=1
 set -euo pipefail
 
-BASE="${AI_TAM_BASE:-https://www.ai-tam.org/market-scan/api/v1}"
+BASE="${AI_TAM_BASE:-http://100.70.225.18:8504/market-scan/api/v1}"
 path="${1:-}"
 [ $# -gt 0 ] && shift
 
