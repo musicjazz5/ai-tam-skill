@@ -1,11 +1,11 @@
 ---
 name: ai-tam
-description: 透過 market-scan REST API（Tailscale 內網 100.70.225.18:8504）取得最新市場掃描資料（8 大主題地圖、跨主題漲跌排行、個股定位、200+ 資料集），並串接後續的分析、社群貼文、YouTube 影片製作。當使用者提到 ai-tam、類股地圖 / AI 地圖 / aiGrowthMap、盤勢速查、主題題材版圖、要用 ai-tam 資料寫貼文或做影片，或在 spark-9fd5 / spark2 等 tailnet 機器上要抓 ai-tam 最新資訊時使用。
+description: 透過 market-scan REST API（Tailscale 內網 100.70.225.18:8504）取得最新市場掃描資料（8 大主題地圖、跨主題漲跌排行、個股定位、台股主動式 ETF 持股/加減碼/估計成本、200+ 資料集），並串接後續的分析、社群貼文、YouTube 影片製作。當使用者提到 ai-tam、類股地圖 / AI 地圖 / aiGrowthMap、盤勢速查、主題題材版圖、主動式 ETF / 00981A / 00881A 持股與加減碼、要用 ai-tam 資料寫貼文或做影片，或在 spark-9fd5 / spark2 等 tailnet 機器上要抓 ai-tam 最新資訊時使用。
 ---
 
 # ai-tam market-scan API
 
-`aiGrowthMap`（AI 地圖）專欄與全部 `public/data` 資料集的唯讀 REST 介面。
+`aiGrowthMap`（AI 地圖）、`etf`（台股主動式 ETF）專欄與全部 `public/data` 資料集的唯讀 REST 介面。
 
 **Base URL**：`http://100.70.225.18:8504/market-scan/api/v1`（ggmac-studio 的 tailnet 位址）
 
@@ -36,6 +36,24 @@ loopback，來源不是 tailnet。**不要**用 ai-tam.org 當 base URL。
 | `GET /movers` | 跨主題漲跌排行 · `?theme=` `?direction=up\|down` `?limit=` `?min_abs_pct=` |
 | `GET /datasets` | 200+ 資料集清單 · `?q=` 關鍵字篩選 |
 | `GET /datasets/{name}` | 取資料集 · `?shape=1` `?path=` `?fields=` `?limit=` `?meta=1` |
+
+### 台股主動式 ETF（tab=etf）
+
+| 端點 | 用途 |
+|------|------|
+| `GET /etf` | 5 檔基金總覽 + 各自最新增減碼摘要 |
+| `GET /etf/{fund}` | 單一基金最新持股（依權重排序）· `?limit=` `?fields=` |
+| `GET /etf/{fund}/changes` | 最新一日增減碼（依金額變動排序）· `?type=加碼\|減碼\|剔除` `?limit=` |
+| `GET /etf/{fund}/cost-basis` | 估計持有成本與距離現價 %· `?below=1`（只留套牢部位）`?limit=` |
+| `GET /etf/{fund}/momentum` | 持股排名動能（週／月排名與權重變化）|
+| `GET /etf/holders/{code}` | 反查某檔台股被哪些 ETF 持有 |
+| `GET /etf/signals` | 跨基金同步買進／出貨機會 · `?fund=` `?trend=accumulating\|distributing` `?code=` `?min_score=` `?limit=` |
+
+基金代號：`00403A` `00881A` `00981A` `00982A` `00991A`
+（**`00403A` 沒有 cost-basis**，只有 4 檔主動 ETF 有）
+
+`type` 的值是**加碼／減碼／剔除**，不是「增碼」。打錯會回 404 並附上該基金當日實際有的值。
+`/etf/signals` 列表預設省略 `combined_series` / `per_fund` 逐日明細；要明細用 `?code=` 或 `?detail=1`。
 
 主題 id：`aiTamWatchlist` `aiGrowth` `earlySignal` `serenity` `gooaye` `taiwanAi` `citriniKuppy` `nuclearUranium`
 
@@ -87,7 +105,17 @@ curl -s "$BASE/themes/aiGrowth?fields=symbol,change_pct" | jq -r \
 ```
 發文前一律先給使用者過目。**不要自行發布到任何社群平台**，除非使用者當次明確授權。
 
-### 4. YouTube 影片製作
+### 4. 台股主動式 ETF 追蹤
+```bash
+curl -s "$BASE/etf"                                    # 5 檔基金今天各動了什麼
+curl -s "$BASE/etf/00981A/changes?limit=10"            # 單一基金加減碼,依金額排序
+curl -s "$BASE/etf/signals?trend=accumulating&limit=10" # 多檔 ETF 同步買進的標的
+curl -s "$BASE/etf/holders/2330"                       # 台積電被哪幾檔 ETF 持有
+```
+`cost-basis` 是**回溯資料快照推估**（增持日收盤價中位數），**不是基金真實建倉成本** ——
+引用時要照 `methodology` 欄位說明，不可直接講成「這檔 ETF 的成本是 X」。
+
+### 5. YouTube 影片製作
 用上面的資料先擬腳本重點，再交棒給 spark2 GPU 影片工廠（`ai-tam-video` MCP，雙主播 安晴／若衡）：
 `video_batch_requirements` → 使用者確認 → `create_video_batch` → `get_video_job` → `get_video_output_links`。
 影片牽涉版權與發布，**建立任務前必須取得使用者明確確認**。
