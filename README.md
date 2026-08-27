@@ -6,26 +6,78 @@ Claude Code plugin marketplace for **AI-TAM market-scan**.
 [market-scan](https://www.ai-tam.org/market-scan?tab=aiGrowthMap) 的最新資料，
 並接續做分析、社群貼文與影片腳本。
 
-> **這是私有 marketplace。** API 只在 Tailscale 網段內可達，
-> 裝在 tailnet 之外的機器上不會有作用。
+> ## ⚠️ 先決條件：必須在 Tailscale 網段內
+>
+> API 只接受來源 IP 在 `100.64.0.0/10` 的**直連**。
+> **沒有加入這個 tailnet 的機器，裝了也完全用不了**（所有端點回 403）。
+> repo 公開只是為了方便團隊安裝，不代表 API 對外開放。
 
 API 為**唯讀**，且**僅限 Tailscale 網段直連**（`100.64.0.0/10`）。從公網 `ai-tam.org` 存取一律回 403。
 
 ---
 
-## 安裝
+## 安裝（團隊成員）
+
+### 步驟 1：加入 tailnet
+
+先請管理者發 Tailscale 邀請，裝好後確認看得到 API 主機：
+
+```bash
+tailscale status | grep ggmac-studio    # 應出現 100.70.225.18
+```
+
+### 步驟 2：裝 plugin
+
+在 Claude Code 裡：
 
 ```
 /plugin marketplace add musicjazz5/ai-tam-skill
 /plugin install ai-tam@ai-tam
 ```
 
-安裝後即可用 `/ai-tam` 叫用。
+裝完重開 Claude Code，即可用 `/ai-tam`。
 
-驗證 API 可達：
+### 步驟 3：驗證
 
 ```bash
 curl -s http://100.70.225.18:8504/market-scan/api/v1/health
+# {"status":"ok","theme_map":{...}}
+```
+
+回 `403` = 你不在 tailnet；連線逾時 = API 主機沒開機。
+
+---
+
+## 疑難排解
+
+**`marketplace add` 失敗 / 認證錯誤**
+`owner/repo` 簡寫預設走 SSH。若你用 HTTPS 憑證（`gh auth login`），擇一：
+
+```bash
+gh auth setup-git                          # 讓 git 用 gh 的憑證
+export CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1   # 或強制走 HTTPS
+```
+
+**背景更新後 marketplace 消失**
+背景刷新會停用 credential helper。建議設：
+
+```bash
+export CLAUDE_CODE_PLUGIN_KEEP_MARKETPLACE_ON_FAILURE=1
+```
+
+**不想裝 plugin，只要 skill**
+直接複製也可以：
+
+```bash
+mkdir -p ~/.claude/skills/ai-tam/scripts
+# 從本 repo 取 plugins/ai-tam/skills/ai-tam/ 底下兩個檔案放進去
+chmod +x ~/.claude/skills/ai-tam/scripts/ai-tam.sh
+```
+
+**改用別的 API 主機位址**
+
+```bash
+export AI_TAM_BASE=http://<其他位址>:8504/market-scan/api/v1
 ```
 
 ---
