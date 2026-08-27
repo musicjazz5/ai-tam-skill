@@ -1,0 +1,26 @@
+{
+  "name": "ai-tam",
+  "owner": {
+    "name": "musicjazz5",
+    "url": "https://github.com/musicjazz5"
+  },
+  "metadata": {
+    "description": "AI-TAM market-scan plugins — 透過公開 REST API 取用 ai-tam.org 的市場掃描資料",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "ai-tam",
+      "source": "./plugins/ai-tam",
+      "description": "透過 ai-tam.org 公開 REST API 取得 8 大主題地圖、跨主題漲跌排行、個股定位與 200+ 資料集，並串接分析、社群貼文與影片製作工作流程。",
+      "version": "1.0.0",
+      "author": {
+        "name": "musicjazz5",
+        "url": "https://github.com/musicjazz5"
+      },
+      "homepage": "https://www.ai-tam.org/market-scan?tab=aiGrowthMap",
+      "license": "MIT",
+      "keywords": ["finance", "stocks", "market-scan", "ai-tam", "research"]
+    }
+  ]
+}

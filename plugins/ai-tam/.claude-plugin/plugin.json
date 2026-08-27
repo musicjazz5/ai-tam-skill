@@ -1,0 +1,15 @@
+{
+  "name": "ai-tam",
+  "displayName": "AI-TAM Market Scan",
+  "version": "1.0.0",
+  "description": "透過 ai-tam.org 公開 REST API 取得 8 大主題地圖、跨主題漲跌排行、個股定位與 200+ 資料集，並串接分析、社群貼文與影片製作工作流程。",
+  "author": {
+    "name": "musicjazz5",
+    "url": "https://github.com/musicjazz5"
+  },
+  "homepage": "https://www.ai-tam.org/market-scan?tab=aiGrowthMap",
+  "repository": "https://github.com/musicjazz5/ai-tam-skill",
+  "license": "MIT",
+  "keywords": ["finance", "stocks", "market-scan", "ai-tam", "research"],
+  "skills": "./skills/"
+}
