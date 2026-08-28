@@ -1,11 +1,11 @@
 ---
 name: ai-tam
-description: 透過 market-scan REST API（Tailscale 內網 100.70.225.18:8504）取得最新市場掃描資料（8 大主題地圖、跨主題漲跌排行、個股定位、台股主動式 ETF 持股/加減碼/估計成本、S&P500 市值 Top10 與多週期漲跌、台股大戶持股/籌碼集中度/三大法人/期貨情緒、國際總經風險狀態/資金流動性/量價廣度、200+ 資料集），並串接後續的分析、社群貼文、YouTube 影片製作。當使用者提到 ai-tam、類股地圖 / AI 地圖 / aiGrowthMap、盤勢速查、主題題材版圖、主動式 ETF / 00981A / 00881A 持股與加減碼、市值排行 / Top10 / 市值集中度、台股大戶 / 千張大戶 / 籌碼集中度 / 三大法人 / 外資期貨、總經 / 國際總經 / 流動性 / Fed / 套利交易 / 量價廣度、要用 ai-tam 資料寫貼文或做影片，或在 spark-9fd5 / spark2 等 tailnet 機器上要抓 ai-tam 最新資訊時使用。
+description: 透過 market-scan REST API（Tailscale 內網 100.70.225.18:8504）取得最新市場掃描資料（8 大主題地圖、跨主題漲跌排行、個股定位、台股主動式 ETF 持股/加減碼/估計成本、S&P500 市值 Top10 與多週期漲跌、台股大戶持股/籌碼集中度/三大法人/期貨情緒、國際總經風險狀態/資金流動性/量價廣度、美股盤前異動/開盤型態/風險模型、200+ 資料集），並串接後續的分析、社群貼文、YouTube 影片製作。當使用者提到 ai-tam、類股地圖 / AI 地圖 / aiGrowthMap、盤勢速查、主題題材版圖、主動式 ETF / 00981A / 00881A 持股與加減碼、市值排行 / Top10 / 市值集中度、台股大戶 / 千張大戶 / 籌碼集中度 / 三大法人 / 外資期貨、總經 / 國際總經 / 流動性 / Fed / 套利交易 / 量價廣度、美股盤前 / 盤前異動 / 開盤型態 / 收盤重點 / premarket、要用 ai-tam 資料寫貼文或做影片，或在 spark-9fd5 / spark2 等 tailnet 機器上要抓 ai-tam 最新資訊時使用。
 ---
 
 # ai-tam market-scan API
 
-`aiGrowthMap`（AI 地圖）、`etf`（台股主動式 ETF）、`top10`（S&P500 市值排行）、`twBigShareholder`（台股大戶籌碼）、`globalMacro`（國際總經）專欄與全部 `public/data` 資料集的唯讀 REST 介面。
+`aiGrowthMap`（AI 地圖）、`etf`（台股主動式 ETF）、`top10`（S&P500 市值排行）、`twBigShareholder`（台股大戶籌碼）、`globalMacro`（國際總經）、`usPremarket`/`usClose`（美股盤前收盤）專欄與全部 `public/data` 資料集的唯讀 REST 介面。
 
 **Base URL**：`http://100.70.225.18:8504/market-scan/api/v1`（ggmac-studio 的 tailnet 位址）
 
@@ -109,6 +109,28 @@ loopback，來源不是 tailnet。**不要**用 ai-tam.org 當 base URL。
 `/macro/timeline` 的 `failed` 欄位列出抓取失敗的序列（目前 `^JPN10Y`），
 **不可把抓不到當成「這段期間沒事件」**。
 
+### 美股盤前／收盤（tab=usPremarket、tab=usClose）
+
+| 端點 | 用途 |
+|------|------|
+| `GET /us` | 總覽：開盤型態 + 風險模型結論 + 五份資料新鮮度（**先看這支**）|
+| `GET /us/premarket` | 追蹤清單盤前報價（15 檔）· `?symbol=` `?sort=premarket` `?limit=` `?fields=` |
+| `GET /us/gainers` | 盤前漲幅榜 + 量能分群 + 策略劇本 · `?quality=microcap\|institutional` `?limit=` |
+| `GET /us/open-pattern` | 開盤型態轉變監控 · `?list=losers\|volume_selloff\|mainline\|buckets` `?bucket=` `?limit=` |
+| `GET /us/snapshot` | 開盤 vs 現價快照（族群彙總＋個股）· `?group=` `?limit=` |
+| `GET /us/risk` | 風險相關性面板 + Index Decision Model · `?group=fear\|core_index\|…` `?flat=1` |
+
+⚠️ **盤前漲幅榜常被 microcap 佔滿**（近期 10 檔中 7 檔是 microcap）。
+`summary.microcap_count` / `institutional_count` 與每筆的 `quality`、`volume_alert`
+是**分層判讀的關鍵** —— microcap 衝上榜通常是題材/低流通量資金，
+**不代表主線在動**。要看機構級標的請用 `?quality=institutional`。
+
+`/us/risk` 的 `index_decision_model` 自述是「decision filter for risk exposure,
+**not a standalone trade signal**」，引用時不要寫成買賣訊號。
+
+`/us/open-pattern` 的 `volume_selloff` 為空陣列是**訊號未觸發**（沒有放量殺盤），
+不是資料缺失 —— 回應會附 `volume_selloff_note` 說明。
+
 主題 id：`aiTamWatchlist` `aiGrowth` `earlySignal` `serenity` `gooaye` `taiwanAi` `citriniKuppy` `nuclearUranium`
 
 ## 節省 context 的鐵則
@@ -205,7 +227,18 @@ curl -s "$BASE/macro/carry-trade" | jq '.carry_trade.regime'
 先講結論（`risk_score.regime`、`liquidity_proxy.interpretation`）再補證據，
 不要把 12 個 FRED 指標全列出來。
 
-### 8. YouTube 影片製作
+### 8. 美股盤前／收盤快報
+```bash
+curl -s "$BASE/us" | jq '{open_pattern, risk_model, gainers_summary}'  # 一次看完結論
+curl -s "$BASE/us/premarket?sort=premarket"                # 追蹤清單盤前
+curl -s "$BASE/us/gainers?quality=institutional"           # 只看機構級,濾掉 microcap 雜訊
+curl -s "$BASE/us/open-pattern?list=mainline&limit=10"     # 主線是否鬆動
+curl -s "$BASE/us/snapshot" | jq '.groups'                 # 族群開盤後表現
+```
+寫盤前快報的順序：**風險模型結論 → 開盤型態 → 族群強弱 → 個股**。
+盤前榜若 microcap 佔多數，要明講「主線未確認」，不要把 microcap 漲幅當成題材啟動。
+
+### 9. YouTube 影片製作
 用上面的資料先擬腳本重點，再交棒給 spark2 GPU 影片工廠（`ai-tam-video` MCP，雙主播 安晴／若衡）：
 `video_batch_requirements` → 使用者確認 → `create_video_batch` → `get_video_job` → `get_video_output_links`。
 影片牽涉版權與發布，**建立任務前必須取得使用者明確確認**。
