@@ -1,11 +1,11 @@
 ---
 name: ai-tam
-description: 透過 market-scan REST API（Tailscale 內網 100.70.225.18:8504）取得最新市場掃描資料（8 大主題地圖、跨主題漲跌排行、個股定位、台股主動式 ETF 持股/加減碼/估計成本、S&P500 市值 Top10 與多週期漲跌、台股大戶持股/籌碼集中度/三大法人/期貨情緒、200+ 資料集），並串接後續的分析、社群貼文、YouTube 影片製作。當使用者提到 ai-tam、類股地圖 / AI 地圖 / aiGrowthMap、盤勢速查、主題題材版圖、主動式 ETF / 00981A / 00881A 持股與加減碼、市值排行 / Top10 / 市值集中度、台股大戶 / 千張大戶 / 籌碼集中度 / 三大法人 / 外資期貨、要用 ai-tam 資料寫貼文或做影片，或在 spark-9fd5 / spark2 等 tailnet 機器上要抓 ai-tam 最新資訊時使用。
+description: 透過 market-scan REST API（Tailscale 內網 100.70.225.18:8504）取得最新市場掃描資料（8 大主題地圖、跨主題漲跌排行、個股定位、台股主動式 ETF 持股/加減碼/估計成本、S&P500 市值 Top10 與多週期漲跌、台股大戶持股/籌碼集中度/三大法人/期貨情緒、國際總經風險狀態/資金流動性/量價廣度、200+ 資料集），並串接後續的分析、社群貼文、YouTube 影片製作。當使用者提到 ai-tam、類股地圖 / AI 地圖 / aiGrowthMap、盤勢速查、主題題材版圖、主動式 ETF / 00981A / 00881A 持股與加減碼、市值排行 / Top10 / 市值集中度、台股大戶 / 千張大戶 / 籌碼集中度 / 三大法人 / 外資期貨、總經 / 國際總經 / 流動性 / Fed / 套利交易 / 量價廣度、要用 ai-tam 資料寫貼文或做影片，或在 spark-9fd5 / spark2 等 tailnet 機器上要抓 ai-tam 最新資訊時使用。
 ---
 
 # ai-tam market-scan API
 
-`aiGrowthMap`（AI 地圖）、`etf`（台股主動式 ETF）、`top10`（S&P500 市值排行）、`twBigShareholder`（台股大戶籌碼）專欄與全部 `public/data` 資料集的唯讀 REST 介面。
+`aiGrowthMap`（AI 地圖）、`etf`（台股主動式 ETF）、`top10`（S&P500 市值排行）、`twBigShareholder`（台股大戶籌碼）、`globalMacro`（國際總經）專欄與全部 `public/data` 資料集的唯讀 REST 介面。
 
 **Base URL**：`http://100.70.225.18:8504/market-scan/api/v1`（ggmac-studio 的 tailnet 位址）
 
@@ -86,6 +86,28 @@ loopback，來源不是 tailnet。**不要**用 ai-tam.org 當 base URL。
 
 `sort=delta` 是**本週變動**（`pct_gt1k_delta`），不是絕對比例；`direction=asc` 看的是減碼最多。
 `min_delta` 比的是絕對值，所以 `min_delta=5` 會同時留下 +9.7 與 -7.7。
+
+### 國際總經（tab=globalMacro）
+
+| 端點 | 用途 |
+|------|------|
+| `GET /macro` | 風險狀態（score / regime）+ **五份資料各自的新鮮度**（先看這支）|
+| `GET /macro/markets` | 全球市場表現 · `?list=markets\|global\|proxies\|regions` `?sort=1w\|1m\|3m\|6m` |
+| `GET /macro/fred` | FRED 總經指標（利率／利差／OAS／VIX）· `?id=DGS10` |
+| `GET /macro/flow` | 資金流動性 proxy（Fed 資產負債表／RRP／M2）· `?series=1` 附完整數列 |
+| `GET /macro/timeline` | 跨資產轉折／異常／極值事件 · `?group=` `?type=` `?series=` `?limit=`（預設 30）|
+| `GET /macro/carry-trade` | 日圓套利交易狀態 + 黃金/日圓矩陣 · `?detail=1` |
+| `GET /macro/breadth` | 美股／台股量價廣度 · `?market=us\|taiwan` |
+| `GET /macro/leverage` | 台日韓融資槓桿全景（**低頻,帶 `stale` 旗標**）|
+
+⚠️ **這個專欄的五份資料更新頻率差距最大**：`macro` / `flow` / `breadth` 幾乎日更，
+`timeline` 日更，但 `leverage` 是人工專題（曾落後 46 天）。`/macro` 會一次回全部
+`age_days`，**引用前先看那支**。`stale:true` 一定要標注資料日期。
+
+`/macro/fred` 每筆有 `risk_direction`（`higher_bad` / `higher_good`）——
+解讀指標方向要照這個欄位，不要自己臆測「利率升＝好或壞」。
+`/macro/timeline` 的 `failed` 欄位列出抓取失敗的序列（目前 `^JPN10Y`），
+**不可把抓不到當成「這段期間沒事件」**。
 
 主題 id：`aiTamWatchlist` `aiGrowth` `earlySignal` `serenity` `gooaye` `taiwanAi` `citriniKuppy` `nuclearUranium`
 
@@ -170,7 +192,20 @@ curl -s "$BASE/tw/stocks/2330"                             # 單一個股籌碼�
 大戶比例是**集保週統計**（每週三公布），與日更的法人資料日期會差幾天 ——
 同一篇貼文若同時引用，必須分別標注日期，不可寫成同一天的事。
 
-### 7. YouTube 影片製作
+### 7. 總經環境判讀
+```bash
+curl -s "$BASE/macro" | jq '{risk_score, datasets}'        # 風險狀態 + 各資料新鮮度
+curl -s "$BASE/macro/flow" | jq '.liquidity_proxy'         # 流動性是收緊還是寬鬆
+curl -s "$BASE/macro/markets?list=regions"                 # 哪個區域在領漲
+curl -s "$BASE/macro/breadth" | jq '.summary'              # 量價是否確認
+curl -s "$BASE/macro/timeline?type=new_low&limit=10"       # 誰在創新低
+curl -s "$BASE/macro/carry-trade" | jq '.carry_trade.regime'
+```
+寫總經段落的順序：**風險狀態 → 流動性 → 區域強弱 → 量價確認 → 個別事件**。
+先講結論（`risk_score.regime`、`liquidity_proxy.interpretation`）再補證據，
+不要把 12 個 FRED 指標全列出來。
+
+### 8. YouTube 影片製作
 用上面的資料先擬腳本重點，再交棒給 spark2 GPU 影片工廠（`ai-tam-video` MCP，雙主播 安晴／若衡）：
 `video_batch_requirements` → 使用者確認 → `create_video_batch` → `get_video_job` → `get_video_output_links`。
 影片牽涉版權與發布，**建立任務前必須取得使用者明確確認**。
