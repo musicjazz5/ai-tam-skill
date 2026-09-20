@@ -37,6 +37,61 @@ loopback，來源不是 tailnet。**不要**用 ai-tam.org 當 base URL。
 | `GET /datasets` | 200+ 資料集清單 · `?q=` 關鍵字篩選 |
 | `GET /datasets/{name}` | 取資料集 · `?shape=1` `?path=` `?fields=` `?limit=` `?meta=1` |
 
+### 市場掃描器（tab=scanner，選股／篩股用這個）
+
+站台入口畫面的資料源，4 個 universe 共 **692 檔**、每檔 32 個指標。要選股一律走這裡，
+不要去撈 `stock_metrics` 原始檔（700KB，會吃掉 context）。
+
+| 端點 | 用途 |
+|------|------|
+| `GET /scanner` | 總覽：各 universe 檔數、資料新鮮度、**可篩欄位白名單與運算子** |
+| `GET /scanner/{market}` | taiwan(101) / america(78) / sp500(503) / crypto(10) · `?q=` `?filter=` `?sort=` `?direction=` `?fields=` `?limit=` |
+| `GET /scanner/screen` | 跨 universe 篩選 · `?markets=taiwan,america` + 同上參數 |
+| `GET /scanner/tickers/{symbol}` | 單一標的 32 個指標（`NVDA` / `NASDAQ:NVDA` / `2330` 皆可） |
+
+**filter 語法**：`pe<20,roe>15,revenue_yoy>=30`（逗號 AND，運算子 `>= <= != > < =`）
+可篩欄位：`close pe forward_pe peg roe fcf market_cap eps_next_fy ttm_eps eps_surprise_fq
+revenue_qoq revenue_yoy day week month year`
+
+```bash
+curl -s "$BASE/scanner" | jq '{generated_at, age_minutes, markets, filterable_fields}'
+curl -s "$BASE/scanner/sp500?filter=pe<20,roe>20&sort=revenue_yoy&limit=10&fields=name,label,pe,roe,revenue_yoy"
+curl -s "$BASE/scanner/screen?markets=taiwan,america&filter=revenue_yoy>30,peg>0,peg<1&sort=peg&direction=asc"
+curl -s "$BASE/scanner/tickers/2330"
+```
+
+**三個一定要知道的行為**：
+
+1. 打錯欄位或運算子會回 **400 並列出可用值**，不會靜默忽略——看到 400 就照它給的白名單改。
+2. **null 不通過任何條件**，排序時排最後。
+3. **負值陷阱**：`peg<1`、`pe<20` 會把虧損股（PE/PEG 為負）一起撈進來。回應的 `notes`
+   會告訴你有幾檔是負值。寫進報告前先確認要不要加 `peg>0`／`pe>0`。
+
+先看 `age_minutes` 再引用數字；掃描器資料一天更新數次，不是即時報價。
+
+### 專欄索引（通用視角，2026-09-10 新增）
+
+不確定資料在哪個專欄、哪個檔名時，**先打這三支**，不要憑記憶猜檔名。
+
+| 端點 | 用途 |
+|------|------|
+| `GET /columns` | 39 個專欄的目錄：id、標題、tab、用哪些資料檔、資料多新 · `?q=` `?tab=` `?file=`（用檔名反查哪些專欄在用）`?limit=` |
+| `GET /columns/{id}` | 單一專欄：各資料檔 bytes / modified_at / generated_at / 頂層欄位 |
+| `GET /columns/{id}/{file}` | 取該專欄實際使用的資料檔 · `?shape=1` `?path=` `?fields=` `?limit=` |
+
+`{id}` 專欄 id、資料夾名、tab id 都吃（`financials` 與 `financialReports` 皆可）。
+`{file}` 只能是該專欄宣告過的檔；要任意存取 `public/data` 走 `/datasets/{name}`。
+
+```bash
+curl -s "$BASE/columns?q=原物料" | jq '.columns[] | {id, label, data_files}'
+curl -s "$BASE/columns/etfLeaderboard" | jq '.column.data_files[] | {name, modified_at, generated_at}'
+curl -s "$BASE/columns/etfLeaderboard/etf_return_leaderboard_latest?path=rows&limit=10&fields=rank,symbol,zh,ytd_pct"
+curl -s "$BASE/columns?file=theme_maps_latest" | jq '.columns[].id'   # 這個檔被哪些專欄用
+```
+
+`/columns` 回應裡的 `warnings` 會列出「manifest 宣告了但檔案不存在」的專欄——
+看到就代表那個專欄的資料流可能斷了，引用前先確認。
+
 ### 台股主動式 ETF（tab=etf）
 
 | 端點 | 用途 |
@@ -251,11 +306,29 @@ curl -s "$BASE/us/snapshot" | jq '.groups'                 # 族群開盤後表�
 
 ## 遠端機器安裝
 
-把這個資料夾放到目標機器的 `~/.claude/skills/ai-tam/`。**該機器必須已加入 tailnet**
-（`tailscale status` 看得到 ggmac-studio 100.70.225.18），否則所有端點都會 403：
+兩種方式，**都必須先在 tailnet 上**（`tailscale status` 看得到 ggmac-studio 100.70.225.18），
+否則所有端點都會 403。
+
+### A. skill（用 curl，不裝東西）
 
 ```bash
 scp -r .claude/skills/ai-tam grant@100.69.76.67:~/.claude/skills/
 ```
+
+### B. MCP server（工具化，不必背端點）
+
+`mcp/ai-tam/server.js` 是零相依的 stdio MCP server（Node 18+ 即可，單檔）：
+
+```bash
+scp market_scan_nextjs/mcp/ai-tam/server.js grant@100.69.76.67:~/ai-tam-mcp-server.js
+ssh grant@100.69.76.67 'claude mcp add ai-tam -- node ~/ai-tam-mcp-server.js'
+```
+
+工具（10 個）：選股用 `ai_tam_scanner_overview` → `ai_tam_scan`（filter 篩選）→ `ai_tam_ticker`；
+專欄用 `ai_tam_list_columns`（找專欄）、`ai_tam_get_column`（看資料檔與新鮮度）、
+`ai_tam_get_column_data`（取資料，支援 shape/path/fields/limit）、`ai_tam_list_datasets`、
+`ai_tam_get_dataset`、`ai_tam_api_get`（打任一端點）、`ai_tam_health`。
+可用 `AI_TAM_BASE` 覆寫 base URL、`AI_TAM_MAX_BYTES` 調整截斷上限（預設 60000）。
+細節與疑難排解看 `market_scan_nextjs/mcp/ai-tam/README.md`。
 
 驗證：`curl -s http://100.70.225.18:8504/market-scan/api/v1/health`（必須在 tailnet 上）

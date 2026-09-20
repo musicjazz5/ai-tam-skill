@@ -65,6 +65,21 @@ export CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1   # 或強制走 HTTPS
 export CLAUDE_CODE_PLUGIN_KEEP_MARKETPLACE_ON_FAILURE=1
 ```
 
+**改用 MCP（工具化，不必背端點）**
+
+plugin 內附零相依的 stdio MCP server（Node 18+，單檔）。裝完 plugin 後：
+
+```bash
+claude mcp add ai-tam -- node ~/.claude/plugins/ai-tam/skills/ai-tam/mcp/server.js
+# 或把 server.js 複製到任何 tailnet 機器再註冊
+```
+
+10 個唯讀工具：選股 `ai_tam_scanner_overview` → `ai_tam_scan` → `ai_tam_ticker`；
+專欄 `ai_tam_list_columns` → `ai_tam_get_column` → `ai_tam_get_column_data`；
+另有 `ai_tam_list_datasets` `ai_tam_get_dataset` `ai_tam_api_get` `ai_tam_health`。
+回應預設截斷 60000 bytes，提示改用 `path` / `fields` / `limit` 下鑽。
+細節見 `plugins/ai-tam/skills/ai-tam/mcp/README.md`。
+
 **不想裝 plugin，只要 skill**
 直接複製也可以：
 
@@ -96,6 +111,27 @@ export AI_TAM_BASE=http://<其他位址>:8504/market-scan/api/v1
 | `GET /movers` | 跨主題漲跌排行 · `theme` `direction` `limit` `min_abs_pct` |
 | `GET /datasets` | 200+ 資料集清單 · `q` |
 | `GET /datasets/{name}` | 資料集下鑽 · `shape` `path` `fields` `limit` `meta` |
+| `GET /scanner` | **市場掃描器總覽**：4 universe／692 檔／可篩欄位白名單與運算子 |
+| `GET /scanner/{market}` | `taiwan`(101) `america`(78) `sp500`(503) `crypto`(10) · `q` `filter` `sort` `direction` `fields` `limit` |
+| `GET /scanner/screen` | **跨 universe 條件篩選** · `markets` + 同上 |
+| `GET /scanner/tickers/{symbol}` | 單一標的 32 個指標（`NVDA` / `NASDAQ:NVDA` / `2330`） |
+| `GET /columns` | **專欄目錄**（40 個）· `q` `tab` `file`（反查哪些專欄在用某檔） |
+| `GET /columns/{id}` | 單一專欄 + 各資料檔更新時間 |
+| `GET /columns/{id}/{file}` | 取該專欄實際使用的資料檔 · `shape` `path` `fields` `limit` |
+
+另有台股籌碼（`/tw/**`）、主動式 ETF（`/etf/**`）、S&P500 市值 Top10（`/top10/**`）、
+國際總經（`/macro/**`）、美股盤前收盤（`/us/**`）共數十支端點，
+完整目錄一律以 `curl -s $BASE` 的即時回應為準，不要憑記憶猜。
+
+### 篩股語法（scanner）
+
+`filter=pe<20,roe>15,revenue_yoy>=30` —— 逗號 AND，運算子 `>= <= != > < =`。
+可篩欄位：`close pe forward_pe peg roe fcf market_cap eps_next_fy ttm_eps eps_surprise_fq
+revenue_qoq revenue_yoy day week month year`
+
+三個刻意的行為：打錯欄位回 **400 並附白名單**（不靜默忽略）；**null 不通過任何條件**、排序排最後；
+**負值陷阱主動提醒** —— `peg<1` 會撈到虧損股（PEG 為負），回應的 `notes` 會說明有幾檔是負值、
+要排除請加 `peg>0`。
 
 主題 id：`aiTamWatchlist` · `aiGrowth` · `earlySignal` · `serenity` · `gooaye` · `taiwanAi` · `citriniKuppy` · `nuclearUranium`
 
@@ -136,7 +172,10 @@ plugins/ai-tam/
 ├── .claude-plugin/plugin.json       ← plugin 資訊
 └── skills/ai-tam/
     ├── SKILL.md                     ← /ai-tam
-    └── scripts/ai-tam.sh            ← 薄包裝：./ai-tam.sh movers limit=10
+    ├── scripts/ai-tam.sh            ← 薄包裝：./ai-tam.sh movers limit=10
+    └── mcp/
+        ├── server.js                ← 零相依 stdio MCP server（10 個唯讀工具）
+        └── README.md                ← MCP 安裝與疑難排解
 ```
 
 ---
